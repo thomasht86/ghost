@@ -11,6 +11,7 @@ from keras.layers import Dense, Flatten
 from keras.optimizers import sgd
 from importghost import Ghost
 from agent import Agent
+from comm import Reader
 
 nb_frames = 1
 state_mats = 8
@@ -30,3 +31,6 @@ game = Ghost(height, width)
 agent = Agent(model)
 agent.train(game)
 agent.play(game)
+
+reader = Reader()
+reader.start_reader()
