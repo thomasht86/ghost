@@ -1,15 +1,6 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Mar 29 06:52:59 2017
-
-@author: thomas
-"""
-
 from memory import ExperienceReplay
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.image as img
 import os
 
 class Agent:

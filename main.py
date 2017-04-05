@@ -11,7 +11,8 @@ from keras.layers import Dense, Flatten
 from keras.optimizers import sgd
 from importghost import Ghost
 from agent import Agent
-from comm import Reader
+import random
+
 
 nb_frames = 1
 state_mats = 8
@@ -27,10 +28,19 @@ model.add(Dense(5))
 model.compile(sgd(lr=.2), "mse")
 
 game = Ghost(height, width)
-
 agent = Agent(model)
-agent.train(game)
-agent.play(game)
 
-reader = Reader()
-reader.start_reader()
+game.reset()
+
+for i in range(1000):
+    S = game.get_state()
+    game.play(random.randrange(0,4,1))
+
+
+agent.train(game)
+
+
+
+m = game.get_state()
+
+agent.play(game)

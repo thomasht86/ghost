@@ -12,6 +12,8 @@ import numpy as np
 import subprocess
 import os
 import time
+import asyncio 
+import multiprocessing as mp
 
 class Ghost(object):
     def __init__(self, height, width):
@@ -21,9 +23,8 @@ class Ghost(object):
         self.gamename = "ghostly"
         self.height = 31
         self.width = 28
-        self.conn = self.reset()
-        time.sleep(3)
-        self.msg = self.get_latest_messages()
+        self.wq = mp.Queue()
+        self.rq = mp.Queue(10000)
         self.won = False
 
     def reset(self):
@@ -32,19 +33,37 @@ class Ghost(object):
         p1 = 0
         p2 = 0
         p3 = 0
-        p4 = 0
         while (True):
             try:
                 p1 = telnetlib.Telnet(self.host, self.port)
                 p2 = telnetlib.Telnet(self.host, self.port)
                 p3 = telnetlib.Telnet(self.host, self.port)
-                p4 = telnetlib.Telnet(self.host, self.port)
             except:
                 pass
             if (p1 != 0):
                 break
-        return p1
+        time.sleep(1)
+        self.connect_and_stream()
+        self.msg = self.get_statemsg()
+        return 
     
+    async def read_msg(self):
+            reader, writer = await asyncio.open_connection(self.host, self.port)
+            while True:
+                data = await reader.read(2500)
+                if data != b"":
+                        decoded = data.decode()
+                        self.rq.put(decoded)
+                if not self.wq.empty():
+                    writer.write(self.wq.get())
+    
+    def f(self):
+            self.loop.run_until_complete(self.read_msg())                    
+    
+    def connect_and_stream(self):      
+        self.loop = asyncio.get_event_loop()
+        mp.Process(target=self.f, args=()).start()
+        
     @property
     def name(self):
         return "ghostly"
@@ -52,10 +71,6 @@ class Ghost(object):
     @property
     def nb_actions(self):
         return 5
-    
-    def get_latest_messages(self):
-        res = self.conn.read_very_eager().decode("utf-8").split("\n")
-        return res
     
     def is_dead(self):
         dead = False
@@ -78,13 +93,26 @@ class Ghost(object):
         return won
     
     def get_statemsg(self):
-        while len(self.msg) < 1:
-            self.msg = self.get_latest_messages()
-        latest = "0"
-        for i, m in enumerate(self.msg):
-            if "gamestate" in m:
-                latest = m
-        return json.loads(latest)
+        msg = 0
+        res = 0
+        if self.rq.empty():
+            while self.rq.empty():
+                try:
+                    msg = self.rq.get(True, 0.1)
+                except:
+                    pass
+                if msg != 0:
+                    break
+        else:
+            while res == 0:
+                msg = self.rq.get()
+                try:
+                    res = json.loads(msg)
+                    if "gamestate" not in res:
+                        res = 0
+                except:
+                    pass
+        return res
 
     def play(self, action):
         if action == 1:
@@ -97,8 +125,7 @@ class Ghost(object):
             send = "DOWN\n"
         if action == 0:
             return
-        self.conn.write(send.encode("ascii"))
-        self.msg = self.get_latest_messages()
+        self.wq.put(send.encode())
         return
     
     def get_score(self):
@@ -107,7 +134,9 @@ class Ghost(object):
         return score
     
     def get_state(self):
-        message = self.get_statemsg()
+        message = 0
+        while message == 0:
+            message = self.get_statemsg()
         statemsg = message["gamestate"]
         # Get binary matrix with ones where there is a wall
         def get_wall(statemsg):
